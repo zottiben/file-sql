@@ -76,12 +76,13 @@ pub(crate) fn rrf(legs: &[Vec<i64>]) -> HashMap<i64, f64> {
     scores
 }
 
-/// Small additive bonus that nudges recently-changed files above ties, decaying
-/// with age so it never dominates relevance.
+/// Small additive bonus that nudges recently-changed files above ties. Capped
+/// well below a single RRF leg's rank-1 contribution (~0.016) so it only breaks
+/// ties between similarly-relevant results and never overrides relevance.
 pub(crate) fn recency_bonus(git_last_commit: Option<i64>, mtime: i64, now: i64) -> f64 {
     let ts = git_last_commit.unwrap_or(mtime);
     let age_days = ((now - ts).max(0) as f64) / 86_400.0;
-    0.05 / (1.0 + age_days / 30.0)
+    0.01 / (1.0 + age_days / 30.0)
 }
 
 pub(crate) fn now_unix() -> i64 {
