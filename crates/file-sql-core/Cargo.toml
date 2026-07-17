@@ -19,3 +19,7 @@ rusqlite = { version = "0.37", features = ["bundled"] }
 sqlite-vec = "=0.1.9"
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "postgres"] }
 pgvector = { version = "0.4", features = ["sqlx"] }
+ignore = "0.4"
+fastembed = "5"
+sha2 = "0.10"
+hex = "0.4"

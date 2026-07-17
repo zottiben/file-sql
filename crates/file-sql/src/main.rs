@@ -2,6 +2,10 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 use file_sql_core::config::Config;
+use file_sql_core::embedding::{Embedder, FastEmbedder};
+use file_sql_core::indexer::Indexer;
+use file_sql_core::model::SearchQuery;
+use file_sql_core::storage;
 
 /// file-sql: fast, semantic, structural code index for AI agents.
 #[derive(Parser)]
@@ -50,12 +54,33 @@ async fn main() -> anyhow::Result<()> {
 
     match cli.command {
         Command::Index { full } => {
-            let _config = load_config(&cli.config)?;
-            anyhow::bail!("index: not implemented yet (full={full})");
+            let config = load_config(&cli.config)?;
+            let store = storage::open(&config).await?;
+            let embedder = build_embedder(&config)?;
+            let indexer = Indexer::new(&config, store.as_ref(), &embedder);
+            let stats = indexer.run(full).await?;
+            println!(
+                "indexed {} file(s), skipped {} unchanged, deleted {} stale",
+                stats.indexed, stats.skipped, stats.deleted
+            );
+            Ok(())
         }
         Command::Search { query, limit } => {
-            let _config = load_config(&cli.config)?;
-            anyhow::bail!("search: not implemented yet (query={query:?}, limit={limit})");
+            let config = load_config(&cli.config)?;
+            let store = storage::open(&config).await?;
+            let embedder = build_embedder(&config)?;
+            let embedding = embedder.embed_one(&query)?;
+            let hits = store
+                .search(&SearchQuery {
+                    text: query,
+                    embedding,
+                    limit,
+                    categories: vec![],
+                    path_prefixes: vec![],
+                })
+                .await?;
+            println!("{}", serde_json::to_string_pretty(&hits)?);
+            Ok(())
         }
         Command::Serve => {
             let _config = load_config(&cli.config)?;
@@ -67,6 +92,19 @@ async fn main() -> anyhow::Result<()> {
             Ok(())
         }
     }
+}
+
+fn build_embedder(config: &Config) -> anyhow::Result<FastEmbedder> {
+    let embedder = FastEmbedder::new(&config.embedding.model, FastEmbedder::default_cache_dir())?;
+    if embedder.dims() != config.embedding.dims {
+        anyhow::bail!(
+            "config embedding.dims={} but model '{}' produces {} dims; fix the config and reindex",
+            config.embedding.dims,
+            config.embedding.model,
+            embedder.dims()
+        );
+    }
+    Ok(embedder)
 }
 
 fn load_config(path: &std::path::Path) -> anyhow::Result<Config> {
