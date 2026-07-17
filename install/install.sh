@@ -75,7 +75,17 @@ else
   curl -fsSL "$RAW_BASE/install/install-skill.sh" | sh
 fi
 
-# 7. Print MCP wiring --------------------------------------------------------
+# 7. If this repo already uses Pi, update its project-level MCP config --------
+if [ -d .pi ] || [ -f .pi/mcp.json ]; then
+  say "Updating existing Pi MCP config..."
+  if [ -f install/install-pi-mcp.sh ]; then
+    sh install/install-pi-mcp.sh
+  else
+    curl -fsSL "$RAW_BASE/install/install-pi-mcp.sh" | sh
+  fi
+fi
+
+# 8. Print MCP wiring --------------------------------------------------------
 cat <<EOF
 
 $(printf '\033[1;32mDone.\033[0m') file-sql is installed and this repo is indexed.
@@ -91,6 +101,11 @@ Wire it into an MCP-capable agent (run the server from this repo directory):
                  [mcp_servers.file-sql]
                  command = "file-sql"
                  args = ["serve"]
+
+  Pi (.pi/mcp.json):
+                 curl -fsSL https://zottiben.github.io/file-sql/install-pi-mcp.sh | sh
+                 # writes/merges:
+                 { "mcpServers": { "file-sql": { "command": "file-sql", "args": ["serve"], "transport": "stdio", "lifecycle": "eager" } } }
 
 The server reads .file-sql/config.toml from its working directory, so launch it
 with the repo as the working directory. Re-run 'file-sql index' (or call the

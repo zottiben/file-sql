@@ -34,7 +34,7 @@ if [ -z "$src" ]; then
 fi
 
 # Install into every convention so it works across harnesses (Claude Code reads
-# .claude/skills; Codex/OpenCode and others read .agents/skills).
+# .claude/skills; Codex/OpenCode/Pi and others read .agents/skills).
 if [ "$scope" = "user" ]; then
   bases="$HOME/.claude/skills"
 else

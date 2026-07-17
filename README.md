@@ -54,6 +54,23 @@ Launch it with the target repo as the working directory (it reads
   command = "file-sql"
   args = ["serve"]
   ```
+- Pi (`.pi/mcp.json`):
+  ```sh
+  curl -fsSL https://zottiben.github.io/file-sql/install-pi-mcp.sh | sh
+  ```
+  This writes/merges:
+  ```json
+  {
+    "mcpServers": {
+      "file-sql": {
+        "command": "file-sql",
+        "args": ["serve"],
+        "transport": "stdio",
+        "lifecycle": "eager"
+      }
+    }
+  }
+  ```
 
 Tools exposed: `search_code`, `find_symbol`, `recently_changed`, `reindex`.
 
@@ -66,7 +83,7 @@ curl -fsSL https://zottiben.github.io/file-sql/install-skill.sh | sh
 
 It writes the skill into `.claude/skills/file-sql-search/` and
 `.agents/skills/file-sql-search/` in the current repo, so Claude Code, Codex,
-OpenCode, and others pick it up. Append `-s -- --user` to install into
+OpenCode, Pi, and others pick it up. Append `-s -- --user` to install into
 `~/.claude/skills/` instead of the current repo.
 
 ## Configuration
