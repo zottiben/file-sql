@@ -113,6 +113,7 @@ mod tests {
             embedding: EmbeddingConfig {
                 model: "test-model".into(),
                 dims: DIMS,
+                model_path: None,
             },
             ignore: vec![],
             max_file_bytes: 1 << 20,

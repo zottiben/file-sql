@@ -39,6 +39,11 @@ pub struct EmbeddingConfig {
     /// Vector dimensionality; must match the model above.
     #[serde(default = "default_dims")]
     pub dims: usize,
+    /// Optional local model directory (`model.onnx` plus tokenizer json files).
+    /// When set, the model is loaded from disk instead of downloaded - needed
+    /// in air-gapped or TLS-intercepting-proxy environments.
+    #[serde(default)]
+    pub model_path: Option<PathBuf>,
 }
 
 fn default_model() -> String {
@@ -54,6 +59,7 @@ impl Default for EmbeddingConfig {
         EmbeddingConfig {
             model: default_model(),
             dims: default_dims(),
+            model_path: None,
         }
     }
 }

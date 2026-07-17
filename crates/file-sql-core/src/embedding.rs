@@ -1,7 +1,10 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-use fastembed::{EmbeddingModel, InitOptions, TextEmbedding};
+use fastembed::{
+    EmbeddingModel, InitOptions, InitOptionsUserDefined, Pooling, TextEmbedding, TokenizerFiles,
+    UserDefinedEmbeddingModel,
+};
 
 use crate::{Error, Result};
 
@@ -36,6 +39,41 @@ impl FastEmbedder {
             .with_show_download_progress(true);
         let inner =
             TextEmbedding::try_new(options).map_err(|e| Error::Embedding(format!("{e:#}")))?;
+        Ok(FastEmbedder {
+            inner: Mutex::new(inner),
+            dims,
+        })
+    }
+
+    /// Load a pre-downloaded model from a local directory containing
+    /// `model.onnx` and the tokenizer json files. Bypasses the network entirely.
+    /// Dimensionality is probed from the model rather than trusted from config.
+    pub fn from_local(dir: &Path) -> Result<Self> {
+        let read = |name: &str| -> Result<Vec<u8>> {
+            let path = dir.join(name);
+            std::fs::read(&path)
+                .map_err(|e| Error::Embedding(format!("reading {}: {e}", path.display())))
+        };
+        let model = UserDefinedEmbeddingModel::new(
+            read("model.onnx")?,
+            TokenizerFiles {
+                tokenizer_file: read("tokenizer.json")?,
+                config_file: read("config.json")?,
+                special_tokens_map_file: read("special_tokens_map.json")?,
+                tokenizer_config_file: read("tokenizer_config.json")?,
+            },
+        )
+        .with_pooling(Pooling::Cls);
+
+        let mut inner =
+            TextEmbedding::try_new_from_user_defined(model, InitOptionsUserDefined::default())
+                .map_err(|e| Error::Embedding(format!("{e:#}")))?;
+        let dims = inner
+            .embed(["dimension probe"], None)
+            .map_err(|e| Error::Embedding(e.to_string()))?
+            .first()
+            .map(|v| v.len())
+            .ok_or_else(|| Error::Embedding("model returned no vector for probe".into()))?;
         Ok(FastEmbedder {
             inner: Mutex::new(inner),
             dims,

@@ -130,7 +130,7 @@ impl Storage for SqliteStore {
              );
              CREATE VIRTUAL TABLE IF NOT EXISTS chunk_vectors USING vec0(
                  chunk_id INTEGER PRIMARY KEY,
-                 embedding FLOAT[{dims}]
+                 embedding FLOAT[{dims}] distance_metric=cosine
              );"
         );
         self.conn

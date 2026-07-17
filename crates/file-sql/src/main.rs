@@ -95,7 +95,10 @@ async fn main() -> anyhow::Result<()> {
 }
 
 fn build_embedder(config: &Config) -> anyhow::Result<FastEmbedder> {
-    let embedder = FastEmbedder::new(&config.embedding.model, FastEmbedder::default_cache_dir())?;
+    let embedder = match &config.embedding.model_path {
+        Some(dir) => FastEmbedder::from_local(dir)?,
+        None => FastEmbedder::new(&config.embedding.model, FastEmbedder::default_cache_dir())?,
+    };
     if embedder.dims() != config.embedding.dims {
         anyhow::bail!(
             "config embedding.dims={} but model '{}' produces {} dims; fix the config and reindex",
