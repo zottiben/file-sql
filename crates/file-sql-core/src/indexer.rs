@@ -3,6 +3,7 @@ use std::path::Path;
 use std::time::UNIX_EPOCH;
 
 use ignore::WalkBuilder;
+use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 use crate::config::Config;
@@ -17,7 +18,7 @@ const CHUNK_WINDOW: usize = 60;
 const CHUNK_STRIDE: usize = 45;
 const SUMMARY_CHARS: usize = 200;
 
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy, Serialize)]
 pub struct IndexStats {
     pub indexed: usize,
     pub skipped: usize,

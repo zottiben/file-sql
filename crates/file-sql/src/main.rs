@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+mod mcp;
+
 use clap::{Parser, Subcommand};
 use file_sql_core::config::Config;
 use file_sql_core::embedding::{Embedder, FastEmbedder};
@@ -83,8 +85,8 @@ async fn main() -> anyhow::Result<()> {
             Ok(())
         }
         Command::Serve => {
-            let _config = load_config(&cli.config)?;
-            anyhow::bail!("serve: not implemented yet");
+            let config = load_config(&cli.config)?;
+            mcp::run(config).await
         }
         Command::Status => {
             let config = load_config(&cli.config)?;
@@ -94,7 +96,7 @@ async fn main() -> anyhow::Result<()> {
     }
 }
 
-fn build_embedder(config: &Config) -> anyhow::Result<FastEmbedder> {
+pub(crate) fn build_embedder(config: &Config) -> anyhow::Result<FastEmbedder> {
     let embedder = match &config.embedding.model_path {
         Some(dir) => FastEmbedder::from_local(dir)?,
         None => FastEmbedder::new(&config.embedding.model, FastEmbedder::default_cache_dir())?,
