@@ -1,0 +1,26 @@
+# Rust
+/target
+**/*.rs.bk
+
+# Bun / Node
+node_modules
+mcp/dist
+bun.lockb.bak
+
+# Local index / data
+*.db
+*.db-shm
+*.db-wal
+.file-sql/
+.file-sql.db
+
+# Model cache
+.fastembed_cache/
+
+# Env
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store

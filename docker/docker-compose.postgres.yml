@@ -1,0 +1,32 @@
+# Postgres + pgvector for the team/shared "postgres" backend.
+# Not needed for the default single-file "sqlite" backend.
+#
+#   docker compose -f docker/docker-compose.postgres.yml up -d
+#
+# Then set in .file-sql/config.toml:
+#   [storage]
+#   backend = "postgres"
+#   postgres_url = "postgres://file_sql:file_sql@localhost:5433/file_sql"
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: file-sql-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: file_sql
+      POSTGRES_PASSWORD: file_sql
+      POSTGRES_DB: file_sql
+    ports:
+      # 5433 on the host to avoid clashing with a local Postgres on 5432.
+      - "5433:5432"
+    volumes:
+      - file_sql_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U file_sql -d file_sql"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  file_sql_pgdata:
