@@ -122,6 +122,12 @@ impl<'a> Indexer<'a> {
             .map(|d| d.as_secs() as i64)
             .unwrap_or(0);
 
+        let language = detect_language(rel);
+        let symbols = language
+            .as_deref()
+            .map(|lang| crate::symbols::extract_symbols(lang, content))
+            .unwrap_or_default();
+
         let raw_chunks = chunk_lines(content);
         let texts: Vec<&str> = raw_chunks.iter().map(|(t, _, _)| t.as_str()).collect();
         let embeddings = self.embedder.embed(&texts)?;
@@ -141,7 +147,7 @@ impl<'a> Indexer<'a> {
             file: FileRecord {
                 path: rel.to_string(),
                 category: classify(rel),
-                language: detect_language(rel),
+                language,
                 size_bytes,
                 sha256: hash,
                 mtime,
@@ -150,7 +156,7 @@ impl<'a> Indexer<'a> {
                 git_commit_count: git.map(|g| g.commit_count),
                 summary: make_summary(content),
             },
-            symbols: Vec::new(),
+            symbols,
             chunks,
         })
     }

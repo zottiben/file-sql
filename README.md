@@ -121,8 +121,10 @@ Code, Codex, OpenCode, Pi, ...). The same binary also exposes one-shot
   personal repos, the reason Postgres exists for bigger ones). A `repo` scope
   key lets one Postgres hold multiple repos.
 - Files are chunked into overlapping line windows, so every text file is
-  searchable regardless of language. Search fuses the vector and trigram legs
-  with reciprocal-rank fusion and a recency boost.
+  searchable regardless of language; for Rust, Python, JavaScript, TypeScript,
+  and Go, tree-sitter also extracts named definitions for `find_symbol`. Search
+  fuses the vector and trigram legs with reciprocal-rank fusion and a recency
+  boost.
 
 ## Storage backends
 
@@ -139,12 +141,12 @@ backend.
 
 ## Status
 
-Works end to end: `index`, `search`, and the `serve` MCP server run against a
-real local embedding model over both SQLite and Postgres. Storage, indexer,
-embeddings, git metadata, the `rmcp` server, the installer, and the skill are in
-place and tested (SQLite + the pipeline in CI; Postgres validated against the
-pgvector container). The remaining enhancement is tree-sitter symbol extraction
-to populate `find_symbol` and enable symbol-aware chunking.
+Works end to end: `index`, `search`, `find_symbol`, and the `serve` MCP server
+run against a real local embedding model over both SQLite and Postgres. Storage,
+indexer, embeddings, git metadata, tree-sitter symbol extraction (Rust, Python,
+JavaScript, TypeScript, Go), the `rmcp` server, the installer, and the skill are
+all in place and tested (SQLite + the pipeline in CI; Postgres validated against
+the pgvector container).
 
 ## Development
 
