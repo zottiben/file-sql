@@ -21,6 +21,74 @@ index that answers three things grep cannot:
 Exact string/regex match stays available as a fallback for when the model
 already knows the literal it wants.
 
+## Install
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/zottiben/file-sql/main/install/install.sh | sh
+```
+
+Run it from the repo you want to index. It:
+
+1. installs the `file-sql` binary with `cargo install` (needs a Rust toolchain - https://rustup.rs),
+2. pre-downloads the local embedding model with `curl` (works behind corporate
+   TLS-intercepting proxies, where the built-in downloader's bundled roots don't
+   trust the proxy CA),
+3. writes `.file-sql/config.toml` for the repo and builds the initial index.
+
+Prerequisites: `curl`, `cargo`, and (optionally) `git` for recency ranking. The
+default SQLite backend needs nothing else; the Postgres backend also needs
+Docker (see [Storage backends](#storage-backends)).
+
+## Usage
+
+```sh
+file-sql index          # index the configured roots (incremental; --full rebuilds)
+file-sql search "how are embeddings generated locally"   # ranked JSON hits
+file-sql serve          # run the MCP server over stdio
+file-sql status         # print the resolved config
+```
+
+## Use it from an AI agent (MCP)
+
+`file-sql serve` is a stdio MCP server, so any MCP-capable harness can call it.
+Launch it with the target repo as the working directory (it reads
+`.file-sql/config.toml` from there).
+
+- Claude Code: `claude mcp add file-sql -- file-sql serve`
+- `.mcp.json`:
+  ```json
+  { "mcpServers": { "file-sql": { "command": "file-sql", "args": ["serve"] } } }
+  ```
+- Codex (`~/.codex/config.toml`):
+  ```toml
+  [mcp_servers.file-sql]
+  command = "file-sql"
+  args = ["serve"]
+  ```
+
+Tools exposed: `search_code`, `find_symbol`, `recently_changed`, `reindex`. Add
+`skill/SKILL.md` to your agent so it knows to prefer these over grep.
+
+## Configuration
+
+`.file-sql/config.toml`:
+
+```toml
+roots = ["."]               # directories to index
+max_file_bytes = 1048576    # skip files larger than this
+
+[storage]
+backend = "sqlite"                  # or "postgres"
+sqlite_path = ".file-sql/index.db"
+# postgres_url = "postgres://file_sql:file_sql@localhost:5433/file_sql"
+# repo = "my-repo"                  # scope key when several repos share one Postgres
+
+[embedding]
+model = "bge-small-en-v1.5"         # bge-small | all-minilm-l6 | bge-base | bge-large
+dims = 384                          # must match the model
+# model_path = "/path/to/model-dir" # load a pre-downloaded model (offline / behind a proxy)
+```
+
 ## Architecture
 
 ```
@@ -42,17 +110,19 @@ Code, Codex, OpenCode, Pi, ...). The same binary also exposes one-shot
 
 ### Scaling notes
 
-- Git metadata (last-changed, churn) is computed in a single `gix` traversal,
-  not one `git log` per file.
+- Git metadata (last-changed, author, churn) is computed in a single `git log`
+  traversal per index, not one call per file.
 - Re-indexing is incremental by content hash; SQLite runs in WAL mode via
   `tokio-rusqlite` so search reads don't block on writes.
 - The active embedding model + dimensionality are pinned in a `meta` table;
   changing the model requires a `--full` reindex.
-- Postgres builds an HNSW index over the vectors for large indexes; sqlite-vec
-  uses brute-force KNN (fast for personal repos, the reason Postgres exists for
-  bigger ones). A `repo` scope key lets one Postgres hold multiple repos.
-- Unsupported languages fall back to line-window chunking so every text file is
-  still searchable; oversized symbols are split to fit the model's context.
+- Both backends rank by cosine similarity: Postgres builds an HNSW index over
+  the vectors for large indexes; sqlite-vec uses brute-force KNN (fast for
+  personal repos, the reason Postgres exists for bigger ones). A `repo` scope
+  key lets one Postgres hold multiple repos.
+- Files are chunked into overlapping line windows, so every text file is
+  searchable regardless of language. Search fuses the vector and trigram legs
+  with reciprocal-rank fusion and a recency boost.
 
 ## Storage backends
 
@@ -69,15 +139,25 @@ backend.
 
 ## Status
 
-Early but functional core. In place and tested: config, domain model, the
-`Storage` trait, and both backends - SQLite (`sqlite-vec` + FTS5 trigram) and
-Postgres (`pgvector` HNSW + `pg_trgm`) - with hybrid RRF search, symbol lookup,
-incremental content-hash skipping, recency ranking, and a model/dims guard.
-Indexer, embeddings, the `rmcp` MCP server, installer, and skill are next.
+Works end to end: `index`, `search`, and the `serve` MCP server run against a
+real local embedding model over both SQLite and Postgres. Storage, indexer,
+embeddings, git metadata, the `rmcp` server, the installer, and the skill are in
+place and tested (SQLite + the pipeline in CI; Postgres validated against the
+pgvector container). The remaining enhancement is tree-sitter symbol extraction
+to populate `find_symbol` and enable symbol-aware chunking.
 
 ## Development
 
 ```sh
-cargo check          # build the Rust core + CLI
+cargo fmt --check
+cargo clippy --all-targets -- -D warnings
+cargo test                       # SQLite + pipeline; Postgres test is env-gated
 cargo run -p file-sql -- status
+```
+
+To run the Postgres-backed test, start the container and point the test at it:
+
+```sh
+docker compose -f docker/docker-compose.postgres.yml up -d
+FILE_SQL_TEST_POSTGRES=postgres://file_sql:file_sql@localhost:5433/file_sql cargo test
 ```
