@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::time::UNIX_EPOCH;
 
@@ -48,6 +48,16 @@ impl<'a> Indexer<'a> {
         let mut seen: HashSet<String> = HashSet::new();
         let mut stats = IndexStats::default();
 
+        // One git traversal for the whole repo, keyed by repo-relative path.
+        // Matches walked paths when a root is the repo root; otherwise the
+        // lookup misses and we fall back to filesystem mtime.
+        let git_meta = self
+            .config
+            .roots
+            .first()
+            .map(|root| git_metadata(root))
+            .unwrap_or_default();
+
         for root in &self.config.roots {
             for result in WalkBuilder::new(root).build() {
                 let Ok(entry) = result else { continue };
@@ -75,7 +85,7 @@ impl<'a> Indexer<'a> {
                     continue;
                 }
 
-                let indexed = self.build_indexed(&rel_str, path, &content, hash)?;
+                let indexed = self.build_indexed(&rel_str, path, &content, hash, &git_meta)?;
                 self.storage.upsert_file(&indexed).await?;
                 stats.indexed += 1;
             }
@@ -97,7 +107,9 @@ impl<'a> Indexer<'a> {
         abs: &Path,
         content: &str,
         hash: String,
+        git_meta: &HashMap<String, GitInfo>,
     ) -> Result<IndexedFile> {
+        let git = git_meta.get(rel);
         let meta = std::fs::metadata(abs).ok();
         let size_bytes = meta
             .as_ref()
@@ -133,15 +145,66 @@ impl<'a> Indexer<'a> {
                 size_bytes,
                 sha256: hash,
                 mtime,
-                git_last_commit: None,
-                git_last_author: None,
-                git_commit_count: None,
+                git_last_commit: git.map(|g| g.last_commit),
+                git_last_author: git.map(|g| g.author.clone()),
+                git_commit_count: git.map(|g| g.commit_count),
                 summary: make_summary(content),
             },
             symbols: Vec::new(),
             chunks,
         })
     }
+}
+
+struct GitInfo {
+    /// Unix seconds of the most recent commit touching the file.
+    last_commit: i64,
+    /// Author of that most recent commit.
+    author: String,
+    /// Number of commits touching the file (churn signal).
+    commit_count: i64,
+}
+
+/// Build a path -> git-history map in a single `git log` pass. Paths are
+/// repo-root-relative (as git emits them). Returns an empty map when the root
+/// isn't a git repo or git isn't available - callers then fall back to mtime.
+fn git_metadata(root: &Path) -> HashMap<String, GitInfo> {
+    let output = std::process::Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args([
+            "log",
+            "--no-merges",
+            "--format=__C__%x09%ct%x09%an",
+            "--name-only",
+        ])
+        .output();
+    let output = match output {
+        Ok(o) if o.status.success() => o,
+        _ => return HashMap::new(),
+    };
+
+    let text = String::from_utf8_lossy(&output.stdout);
+    let mut map: HashMap<String, GitInfo> = HashMap::new();
+    let mut ts = 0i64;
+    let mut author = String::new();
+    for line in text.lines() {
+        if let Some(rest) = line.strip_prefix("__C__\t") {
+            let mut parts = rest.splitn(2, '\t');
+            ts = parts.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+            author = parts.next().unwrap_or("").to_string();
+        } else if !line.is_empty() {
+            // git log is reverse-chronological, so the first time we see a path
+            // is its most recent commit; later sightings only bump the count.
+            let entry = map.entry(line.to_string()).or_insert(GitInfo {
+                last_commit: ts,
+                author: author.clone(),
+                commit_count: 0,
+            });
+            entry.commit_count += 1;
+        }
+    }
+    map
 }
 
 fn sha256_hex(content: &str) -> String {
@@ -346,6 +409,43 @@ mod tests {
         // Second window starts at STRIDE+1, proving the overlap.
         assert_eq!(chunks[1].1, CHUNK_STRIDE as u32 + 1);
         assert_eq!(chunks.last().unwrap().2, 130);
+    }
+
+    #[test]
+    fn git_metadata_reads_history() {
+        if std::process::Command::new("git")
+            .arg("--version")
+            .output()
+            .is_err()
+        {
+            return;
+        }
+        let dir = std::env::temp_dir().join(format!("file-sql-git-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let git = |args: &[&str]| {
+            std::process::Command::new("git")
+                .arg("-C")
+                .arg(&dir)
+                .args(args)
+                .env("GIT_AUTHOR_NAME", "Tester")
+                .env("GIT_AUTHOR_EMAIL", "t@example.com")
+                .env("GIT_COMMITTER_NAME", "Tester")
+                .env("GIT_COMMITTER_EMAIL", "t@example.com")
+                .output()
+                .unwrap()
+        };
+        git(&["init", "-q"]);
+        std::fs::write(dir.join("a.rs"), "fn a() {}\n").unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-q", "-m", "first"]);
+
+        let meta = git_metadata(&dir);
+        let info = meta.get("a.rs").expect("a.rs should be in git metadata");
+        assert_eq!(info.commit_count, 1);
+        assert_eq!(info.author, "Tester");
+        assert!(info.last_commit > 0);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[tokio::test]
