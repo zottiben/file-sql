@@ -39,6 +39,13 @@ Prerequisites: `curl`, `cargo`, and (optionally) `git` for recency ranking. The
 default SQLite backend needs nothing else; the Postgres backend also needs
 Docker (see [Storage backends](#storage-backends)).
 
+Behind a TLS-intercepting corporate proxy, if `cargo install` fails to clone
+over HTTPS, tell cargo to use the git CLI (which trusts the system cert store):
+
+```sh
+export CARGO_NET_GIT_FETCH_WITH_CLI=true
+```
+
 ## Usage
 
 ```sh
