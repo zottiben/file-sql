@@ -9,6 +9,7 @@
 set -eu
 
 REPO_URL="https://github.com/zottiben/file-sql"
+RAW_BASE="https://raw.githubusercontent.com/zottiben/file-sql/main"
 MODEL_REPO="https://huggingface.co/Xenova/bge-small-en-v1.5/resolve/main"
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/file-sql"
 MODEL_DIR="$CACHE_DIR/models/bge-small"
@@ -66,7 +67,15 @@ fi
 say "Building the initial index..."
 "$BIN" index
 
-# 6. Print MCP wiring --------------------------------------------------------
+# 6. Install the agent skill -------------------------------------------------
+say "Installing the agent skill into this repo..."
+if [ -f install/install-skill.sh ]; then
+  sh install/install-skill.sh
+else
+  curl -fsSL "$RAW_BASE/install/install-skill.sh" | sh
+fi
+
+# 7. Print MCP wiring --------------------------------------------------------
 cat <<EOF
 
 $(printf '\033[1;32mDone.\033[0m') file-sql is installed and this repo is indexed.

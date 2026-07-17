@@ -73,8 +73,19 @@ Launch it with the target repo as the working directory (it reads
   args = ["serve"]
   ```
 
-Tools exposed: `search_code`, `find_symbol`, `recently_changed`, `reindex`. Add
-`skill/SKILL.md` to your agent so it knows to prefer these over grep.
+Tools exposed: `search_code`, `find_symbol`, `recently_changed`, `reindex`.
+
+Install the bundled skill so your agent knows to prefer these tools over grep
+(the main installer does this automatically; run it standalone with):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/zottiben/file-sql/main/install/install-skill.sh | sh
+```
+
+It writes the skill into `.claude/skills/file-sql-search/` and
+`.agents/skills/file-sql-search/` in the current repo, so Claude Code, Codex,
+OpenCode, and others pick it up. Append `-s -- --user` to install into
+`~/.claude/skills/` instead of the current repo.
 
 ## Configuration
 
@@ -104,7 +115,7 @@ crates/
   file-sql/        Rust bin: `index | search | serve | status`
 docker/            docker-compose for the Postgres + pgvector backend
 skill/             bundled agent skill (when/how to use the tools)
-install/           curl installer
+install/           curl installer + agent-skill installer
 ```
 
 `file-sql` is a single Rust binary. The `serve` subcommand runs the MCP server
