@@ -3,24 +3,6 @@
 A local code-index MCP server that lets AI agents find the right files fast -
 without blindly grepping and re-reading a whole repo.
 
-## Why
-
-When an agent needs to locate where a change goes or hunt a bug, it tends to
-grep for guessed keywords across the entire tree and then read whole files.
-That is slow and burns tokens. `file-sql` replaces that loop with a purpose-built
-index that answers three things grep cannot:
-
-- **Semantic discovery** - "where is rate limiting handled" finds the right
-  files even when they never contain the words "rate limit" (vector search).
-- **Token reduction** - results come back as ranked files with a short summary
-  and the exact matching line range, so the model reads 20 lines, not 500.
-- **Structural precision + recency** - jump straight to a symbol's definition,
-  and recently-changed files are boosted so the file you just touched surfaces
-  first.
-
-Exact string/regex match stays available as a fallback for when the model
-already knows the literal it wants.
-
 ## Install
 
 ```sh
@@ -107,43 +89,6 @@ dims = 384                          # must match the model
 # model_path = "/path/to/model-dir" # load a pre-downloaded model (offline / behind a proxy)
 ```
 
-## Architecture
-
-```
-crates/
-  file-sql-core/   Rust: config, storage trait, indexer, search, embeddings
-  file-sql/        Rust bin: `index | search | serve | status`
-docker/            docker-compose for the Postgres + pgvector backend
-skill/             bundled agent skill (when/how to use the tools)
-install/           curl installer + agent-skill installer
-```
-
-`file-sql` is a single Rust binary. The `serve` subcommand runs the MCP server
-directly via `rmcp` (the Rust MCP SDK) over stdio, so a harness launches
-`file-sql serve` as its MCP server - no second runtime, no IPC hop, no socket
-files. The embedding model loads once and stays resident for the session, and
-because it speaks MCP over stdio it plugs into any MCP-capable harness (Claude
-Code, Codex, OpenCode, Pi, ...). The same binary also exposes one-shot
-`index` / `search` / `status` for scripting and debugging.
-
-### Scaling notes
-
-- Git metadata (last-changed, author, churn) is computed in a single `git log`
-  traversal per index, not one call per file.
-- Re-indexing is incremental by content hash; SQLite runs in WAL mode via
-  `tokio-rusqlite` so search reads don't block on writes.
-- The active embedding model + dimensionality are pinned in a `meta` table;
-  changing the model requires a `--full` reindex.
-- Both backends rank by cosine similarity: Postgres builds an HNSW index over
-  the vectors for large indexes; sqlite-vec uses brute-force KNN (fast for
-  personal repos, the reason Postgres exists for bigger ones). A `repo` scope
-  key lets one Postgres hold multiple repos.
-- Files are chunked into overlapping line windows, so every text file is
-  searchable regardless of language; for Rust, Python, JavaScript, TypeScript,
-  and Go, tree-sitter also extracts named definitions for `find_symbol`. Search
-  fuses the vector and trigram legs with reciprocal-rank fusion and a recency
-  boost.
-
 ## Storage backends
 
 Pick one at install/config time:
@@ -156,15 +101,6 @@ Pick one at install/config time:
 SQLite uses `sqlite-vec` + FTS5; Postgres uses `pgvector` + `pg_trgm`. Both sit
 behind one `Storage` trait, so the indexer and search code never branch on
 backend.
-
-## Status
-
-Works end to end: `index`, `search`, `find_symbol`, and the `serve` MCP server
-run against a real local embedding model over both SQLite and Postgres. Storage,
-indexer, embeddings, git metadata, tree-sitter symbol extraction (Rust, Python,
-JavaScript, TypeScript, Go), the `rmcp` server, the installer, and the skill are
-all in place and tested (SQLite + the pipeline in CI; Postgres validated against
-the pgvector container).
 
 ## Development
 
