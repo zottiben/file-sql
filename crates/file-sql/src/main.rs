@@ -29,12 +29,11 @@ enum Command {
         #[arg(long, default_value_t = 10)]
         limit: usize,
     },
-    /// Run the resident daemon (keeps the embedding model in memory).
-    Serve {
-        /// Unix socket path the MCP adapter connects to.
-        #[arg(long, default_value = ".file-sql/daemon.sock")]
-        socket: PathBuf,
-    },
+    /// Run the resident worker: read JSON-RPC requests on stdin, write
+    /// responses on stdout. The MCP adapter spawns this as a child process so
+    /// the embedding model stays resident for the session - cross-platform,
+    /// with no socket files or orphaned daemons.
+    Serve,
     /// Print index stats and configuration.
     Status,
 }
@@ -60,9 +59,9 @@ async fn main() -> anyhow::Result<()> {
             let _config = load_config(&cli.config)?;
             anyhow::bail!("search: not implemented yet (query={query:?}, limit={limit})");
         }
-        Command::Serve { socket } => {
+        Command::Serve => {
             let _config = load_config(&cli.config)?;
-            anyhow::bail!("serve: not implemented yet (socket={})", socket.display());
+            anyhow::bail!("serve: not implemented yet");
         }
         Command::Status => {
             let config = load_config(&cli.config)?;

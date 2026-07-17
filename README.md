@@ -35,10 +35,26 @@ install/           curl installer
 
 The **Rust core** owns the heavy path (walking, tree-sitter chunking, local
 embeddings, storage, hybrid search) and runs as a one-shot CLI or as a resident
-daemon that keeps the embedding model in memory for sub-second repeated queries.
-The **Bun/TS MCP server** is a thin adapter that exposes MCP tools over stdio and
-talks to the daemon, so it works with any MCP-capable harness (Claude Code,
-Codex, OpenCode, Pi, ...).
+worker (`serve`). The **Bun/TS MCP server** spawns `serve` as a child process
+and speaks a private line-delimited JSON-RPC over its stdin/stdout, so the
+embedding model stays resident for the session with no socket files, no orphaned
+daemons, and no platform-specific IPC. Because the adapter itself speaks MCP over
+stdio, it works with any MCP-capable harness (Claude Code, Codex, OpenCode,
+Pi, ...).
+
+### Scaling notes
+
+- Git metadata (last-changed, churn) is computed in a single `gix` traversal,
+  not one `git log` per file.
+- Re-indexing is incremental by content hash; SQLite runs in WAL mode via
+  `tokio-rusqlite` so search reads don't block on writes.
+- The active embedding model + dimensionality are pinned in a `meta` table;
+  changing the model requires a `--full` reindex.
+- Postgres builds an HNSW index over the vectors for large indexes; sqlite-vec
+  uses brute-force KNN (fast for personal repos, the reason Postgres exists for
+  bigger ones). A `repo` scope key lets one Postgres hold multiple repos.
+- Unsupported languages fall back to line-window chunking so every text file is
+  still searchable; oversized symbols are split to fit the model's context.
 
 ## Storage backends
 
