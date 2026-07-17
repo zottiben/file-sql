@@ -3,13 +3,15 @@ use std::path::PathBuf;
 mod mcp;
 
 use clap::{Parser, Subcommand};
-use file_sql_core::config::Config;
-use file_sql_core::embedding::{Embedder, FastEmbedder};
+use file_sql_core::config::{Config, EmbeddingMode};
+#[cfg(feature = "model-embeddings")]
+use file_sql_core::embedding::FastEmbedder;
+use file_sql_core::embedding::{Embedder, LexicalEmbedder};
 use file_sql_core::indexer::Indexer;
 use file_sql_core::model::SearchQuery;
 use file_sql_core::storage;
 
-/// file-sql: fast, semantic, structural code index for AI agents.
+/// file-sql: fast lexical/structural code index for AI agents.
 #[derive(Parser)]
 #[command(name = "file-sql", version, about)]
 struct Cli {
@@ -29,15 +31,15 @@ enum Command {
         #[arg(long)]
         full: bool,
     },
-    /// One-shot hybrid search; prints JSON hits.
+    /// One-shot lexical/structural search; prints JSON hits.
     Search {
         query: String,
         #[arg(long, default_value_t = 10)]
         limit: usize,
     },
     /// Run the MCP server over stdio (via rmcp). A harness launches this
-    /// directly; the embedding model loads once and stays resident for the
-    /// session.
+    /// directly; lexical mode is AI-free by default, while optional model mode
+    /// keeps the embedding model resident for the session.
     Serve,
     /// Print index stats and configuration.
     Status,
@@ -59,7 +61,7 @@ async fn main() -> anyhow::Result<()> {
             let config = load_config(&cli.config)?;
             let store = storage::open(&config).await?;
             let embedder = build_embedder(&config)?;
-            let indexer = Indexer::new(&config, store.as_ref(), &embedder);
+            let indexer = Indexer::new(&config, store.as_ref(), embedder.as_ref());
             let stats = indexer.run(full).await?;
             println!(
                 "indexed {} file(s), skipped {} unchanged, deleted {} stale",
@@ -96,7 +98,15 @@ async fn main() -> anyhow::Result<()> {
     }
 }
 
-pub(crate) fn build_embedder(config: &Config) -> anyhow::Result<FastEmbedder> {
+pub(crate) fn build_embedder(config: &Config) -> anyhow::Result<Box<dyn Embedder>> {
+    match config.embedding.mode {
+        EmbeddingMode::Lexical => Ok(Box::new(LexicalEmbedder::new(config.embedding.dims)?)),
+        EmbeddingMode::Model => build_model_embedder(config),
+    }
+}
+
+#[cfg(feature = "model-embeddings")]
+fn build_model_embedder(config: &Config) -> anyhow::Result<Box<dyn Embedder>> {
     let embedder = match &config.embedding.model_path {
         Some(dir) => FastEmbedder::from_local(dir)?,
         None => FastEmbedder::new(&config.embedding.model, FastEmbedder::default_cache_dir())?,
@@ -109,7 +119,14 @@ pub(crate) fn build_embedder(config: &Config) -> anyhow::Result<FastEmbedder> {
             embedder.dims()
         );
     }
-    Ok(embedder)
+    Ok(Box::new(embedder))
+}
+
+#[cfg(not(feature = "model-embeddings"))]
+fn build_model_embedder(_config: &Config) -> anyhow::Result<Box<dyn Embedder>> {
+    anyhow::bail!(
+        "embedding.mode = 'model' requires installing file-sql with `--features model-embeddings`; default installs use AI-free lexical indexing"
+    )
 }
 
 fn load_config(path: &std::path::Path) -> anyhow::Result<Config> {

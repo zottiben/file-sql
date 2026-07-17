@@ -51,7 +51,7 @@ impl PostgresStore {
             pool,
             repo: config.repo_key(),
             dims: config.embedding.dims,
-            model: config.embedding.model.clone(),
+            model: config.embedding.index_model_key(),
         })
     }
 }
@@ -126,7 +126,7 @@ impl Storage for PostgresStore {
         match (existing_dims, existing_model) {
             (Some(d), Some(m)) if d != self.dims.to_string() || m != self.model => {
                 Err(Error::Storage(format!(
-                    "index was built with model={m} dims={d} but config has model={} dims={}; run `file-sql index --full` to rebuild",
+                    "index was built with vectorization={m} dims={d} but config has vectorization={} dims={}; use a fresh Postgres repo scope or clear the old index before rebuilding",
                     self.model, self.dims
                 )))
             }

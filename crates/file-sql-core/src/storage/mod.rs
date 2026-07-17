@@ -21,7 +21,7 @@ pub use sqlite::SqliteStore;
 #[async_trait]
 pub trait Storage: Send + Sync {
     /// Create tables, indexes, and load required extensions if missing.
-    /// Also pins the embedding model+dims and rejects a changed model.
+    /// Also pins the vectorization key+dims and rejects incompatible indexes.
     async fn migrate(&self) -> Result<()>;
 
     /// Return the stored content hash for `path`, if the file is indexed.
@@ -98,7 +98,7 @@ mod tests {
     use std::sync::atomic::{AtomicU32, Ordering};
 
     use super::*;
-    use crate::config::{Backend, EmbeddingConfig, StorageConfig};
+    use crate::config::{Backend, EmbeddingConfig, EmbeddingMode, StorageConfig};
     use crate::model::{Category, Chunk, FileRecord, IndexedFile, Symbol, SymbolKind};
 
     const DIMS: usize = 4;
@@ -112,6 +112,7 @@ mod tests {
                 postgres_url: None,
             },
             embedding: EmbeddingConfig {
+                mode: EmbeddingMode::Lexical,
                 model: "test-model".into(),
                 dims: DIMS,
                 model_path: None,
@@ -295,7 +296,10 @@ mod tests {
             .await
             .err()
             .expect("expected a model-change error");
-        assert!(err.to_string().contains("index --full"), "got: {err}");
+        assert!(
+            err.to_string().contains("delete the old SQLite index"),
+            "got: {err}"
+        );
         let _ = std::fs::remove_file(&path);
     }
 

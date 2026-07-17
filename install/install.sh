@@ -3,17 +3,12 @@
 #
 #   curl -fsSL https://zottiben.github.io/file-sql/install.sh | sh
 #
-# Installs the `file-sql` binary (via cargo), pre-downloads the local embedding
-# model with curl (works behind TLS-intercepting proxies where the built-in
-# downloader can't), writes a config for the current repo, and builds the index.
+# Installs the `file-sql` binary (via cargo), writes an AI-free lexical config
+# for the current repo, and builds the index.
 set -eu
 
 REPO_URL="https://github.com/zottiben/file-sql"
 RAW_BASE="https://raw.githubusercontent.com/zottiben/file-sql/main"
-MODEL_REPO="https://huggingface.co/Xenova/bge-small-en-v1.5/resolve/main"
-CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/file-sql"
-MODEL_DIR="$CACHE_DIR/models/bge-small"
-
 say() { printf '\033[1;34m==>\033[0m %s\n' "$1"; }
 warn() { printf '\033[1;33mwarn:\033[0m %s\n' "$1" >&2; }
 die() { printf '\033[1;31merror:\033[0m %s\n' "$1" >&2; exit 1; }
@@ -30,20 +25,7 @@ cargo install --git "$REPO_URL" file-sql --locked
 BIN="$(command -v file-sql || echo "$HOME/.cargo/bin/file-sql")"
 say "Installed: $BIN"
 
-# 3. Pre-download the embedding model ---------------------------------------
-if [ -f "$MODEL_DIR/model.onnx" ]; then
-  say "Embedding model already present at $MODEL_DIR"
-else
-  say "Downloading the bge-small embedding model (~130 MB) into $MODEL_DIR ..."
-  mkdir -p "$MODEL_DIR"
-  curl -fsSL -o "$MODEL_DIR/model.onnx"              "$MODEL_REPO/onnx/model.onnx"
-  curl -fsSL -o "$MODEL_DIR/tokenizer.json"          "$MODEL_REPO/tokenizer.json"
-  curl -fsSL -o "$MODEL_DIR/config.json"             "$MODEL_REPO/config.json"
-  curl -fsSL -o "$MODEL_DIR/special_tokens_map.json" "$MODEL_REPO/special_tokens_map.json"
-  curl -fsSL -o "$MODEL_DIR/tokenizer_config.json"   "$MODEL_REPO/tokenizer_config.json"
-fi
-
-# 4. Write per-repo config ---------------------------------------------------
+# 3. Write per-repo config ---------------------------------------------------
 if [ -f ".file-sql/config.toml" ]; then
   say "Keeping existing .file-sql/config.toml"
 else
@@ -57,17 +39,16 @@ backend = "sqlite"
 sqlite_path = ".file-sql/index.db"
 
 [embedding]
-model = "bge-small-en-v1.5"
+mode = "lexical" # deterministic token hashing; no AI/ML model, no model download
 dims = 384
-model_path = "$MODEL_DIR"
 EOF
 fi
 
-# 5. Build the initial index -------------------------------------------------
+# 4. Build the initial index -------------------------------------------------
 say "Building the initial index..."
 "$BIN" index
 
-# 6. Install the agent skill -------------------------------------------------
+# 5. Install the agent skill -------------------------------------------------
 say "Installing the agent skill into this repo..."
 if [ -f install/install-skill.sh ]; then
   sh install/install-skill.sh
@@ -75,7 +56,7 @@ else
   curl -fsSL "$RAW_BASE/install/install-skill.sh" | sh
 fi
 
-# 7. If this repo already uses Pi, update its project-level MCP config --------
+# 6. If this repo already uses Pi, update its project-level MCP config --------
 if [ -d .pi ] || [ -f .pi/mcp.json ]; then
   say "Updating existing Pi MCP config..."
   if [ -f install/install-pi-mcp.sh ]; then
@@ -85,7 +66,7 @@ if [ -d .pi ] || [ -f .pi/mcp.json ]; then
   fi
 fi
 
-# 8. Print MCP wiring --------------------------------------------------------
+# 7. Print MCP wiring --------------------------------------------------------
 cat <<EOF
 
 $(printf '\033[1;32mDone.\033[0m') file-sql is installed and this repo is indexed.

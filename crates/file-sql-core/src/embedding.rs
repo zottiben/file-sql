@@ -1,6 +1,9 @@
+#[cfg(feature = "model-embeddings")]
 use std::path::{Path, PathBuf};
+#[cfg(feature = "model-embeddings")]
 use std::sync::Mutex;
 
+#[cfg(feature = "model-embeddings")]
 use fastembed::{
     EmbeddingModel, InitOptions, InitOptionsUserDefined, Pooling, TextEmbedding, TokenizerFiles,
     UserDefinedEmbeddingModel,
@@ -24,13 +27,67 @@ pub trait Embedder: Send + Sync {
     }
 }
 
+/// Deterministic lexical token-hash embedder. This is not an AI/ML model: it
+/// lowercases tokens, hashes them into fixed buckets, and L2-normalizes the
+/// vector. It gives the storage layer a vector leg without loading or
+/// downloading any model.
+pub struct LexicalEmbedder {
+    dims: usize,
+}
+
+impl LexicalEmbedder {
+    pub fn new(dims: usize) -> Result<Self> {
+        if dims == 0 {
+            return Err(Error::Config(
+                "embedding.dims must be greater than zero".into(),
+            ));
+        }
+        Ok(LexicalEmbedder { dims })
+    }
+}
+
+impl Embedder for LexicalEmbedder {
+    fn dims(&self) -> usize {
+        self.dims
+    }
+
+    fn embed(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>> {
+        let mut out = Vec::with_capacity(texts.len());
+        for text in texts {
+            let mut v = vec![0.0f32; self.dims];
+            for token in text
+                .split(|c: char| !c.is_alphanumeric())
+                .filter(|t| !t.is_empty())
+            {
+                let mut h: u64 = 1469598103934665603;
+                for b in token.to_ascii_lowercase().bytes() {
+                    h ^= b as u64;
+                    h = h.wrapping_mul(1099511628211);
+                }
+                v[(h as usize) % self.dims] += 1.0;
+            }
+            let norm = v.iter().map(|x| x * x).sum::<f32>().sqrt();
+            if norm > 0.0 {
+                for x in &mut v {
+                    *x /= norm;
+                }
+            }
+            out.push(v);
+        }
+        Ok(out)
+    }
+}
+
 /// Local ONNX embedder (fastembed). The model is downloaded once into the cache
-/// dir and then loaded from disk; no API keys, so the tool stays model-agnostic.
+/// dir and then loaded from disk; no API keys or external inference calls, but
+/// this is still an ML model and is only compiled with `model-embeddings`.
+#[cfg(feature = "model-embeddings")]
 pub struct FastEmbedder {
     inner: Mutex<TextEmbedding>,
     dims: usize,
 }
 
+#[cfg(feature = "model-embeddings")]
 impl FastEmbedder {
     pub fn new(model_name: &str, cache_dir: PathBuf) -> Result<Self> {
         let (model, dims) = resolve_model(model_name);
@@ -89,6 +146,7 @@ impl FastEmbedder {
     }
 }
 
+#[cfg(feature = "model-embeddings")]
 impl Embedder for FastEmbedder {
     fn dims(&self) -> usize {
         self.dims
@@ -110,6 +168,7 @@ impl Embedder for FastEmbedder {
 
 /// Map a friendly/HuggingFace-style model name to a fastembed model + its fixed
 /// dimensionality. Unknown names fall back to bge-small so the tool still runs.
+#[cfg(feature = "model-embeddings")]
 fn resolve_model(name: &str) -> (EmbeddingModel, usize) {
     let key = name.to_ascii_lowercase();
     let pick = |needle: &str| key.contains(needle);
@@ -127,49 +186,4 @@ fn resolve_model(name: &str) -> (EmbeddingModel, usize) {
 }
 
 #[cfg(test)]
-pub(crate) struct HashEmbedder {
-    dims: usize,
-}
-
-#[cfg(test)]
-impl HashEmbedder {
-    pub(crate) fn new(dims: usize) -> Self {
-        HashEmbedder { dims }
-    }
-}
-
-#[cfg(test)]
-impl Embedder for HashEmbedder {
-    fn dims(&self) -> usize {
-        self.dims
-    }
-
-    /// Deterministic bag-of-words hashing embedder: each whitespace token lands
-    /// in a bucket, then the vector is L2-normalized. Same words -> similar
-    /// vectors, which is enough to exercise the vector search path offline.
-    fn embed(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>> {
-        let mut out = Vec::with_capacity(texts.len());
-        for text in texts {
-            let mut v = vec![0.0f32; self.dims];
-            for token in text
-                .split(|c: char| !c.is_alphanumeric())
-                .filter(|t| !t.is_empty())
-            {
-                let mut h: u64 = 1469598103934665603;
-                for b in token.to_ascii_lowercase().bytes() {
-                    h ^= b as u64;
-                    h = h.wrapping_mul(1099511628211);
-                }
-                v[(h as usize) % self.dims] += 1.0;
-            }
-            let norm = v.iter().map(|x| x * x).sum::<f32>().sqrt();
-            if norm > 0.0 {
-                for x in &mut v {
-                    *x /= norm;
-                }
-            }
-            out.push(v);
-        }
-        Ok(out)
-    }
-}
+pub(crate) type HashEmbedder = LexicalEmbedder;

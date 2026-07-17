@@ -8,18 +8,18 @@ use rmcp::{tool, tool_handler, tool_router, ErrorData, ServerHandler, ServiceExt
 use serde::{Deserialize, Serialize};
 
 use file_sql_core::config::Config;
-use file_sql_core::embedding::{Embedder, FastEmbedder};
+use file_sql_core::embedding::Embedder;
 use file_sql_core::indexer::Indexer;
 use file_sql_core::model::{Category, SearchQuery};
 use file_sql_core::storage::{self, Storage};
 
 /// Shared, immutable server state behind an `Arc` so the rmcp handler can be
-/// cloned per request cheaply while the storage connection and resident
-/// embedding model are shared.
+/// cloned per request cheaply while the storage connection and configured
+/// ranker/embedder are shared.
 struct Inner {
     config: Config,
     storage: Box<dyn Storage>,
-    embedder: FastEmbedder,
+    embedder: Box<dyn Embedder>,
 }
 
 #[derive(Clone)]
@@ -31,8 +31,8 @@ pub struct FileSqlServer {
 #[derive(Debug, Deserialize, rmcp::schemars::JsonSchema)]
 #[schemars(crate = "rmcp::schemars")]
 struct SearchArgs {
-    /// Natural-language description of what you want to find (a behavior, a
-    /// concept, an error) - not just keywords. This is a semantic search.
+    /// Query text for the lexical/structural index. Use likely code terms plus
+    /// a short description of the behavior/concept.
     query: String,
     /// Maximum number of files to return. Defaults to 10.
     #[serde(default)]
@@ -83,7 +83,7 @@ fn json_result<T: Serialize>(value: &T) -> Result<CallToolResult, ErrorData> {
 
 #[tool_router]
 impl FileSqlServer {
-    pub fn new(config: Config, storage: Box<dyn Storage>, embedder: FastEmbedder) -> Self {
+    pub fn new(config: Config, storage: Box<dyn Storage>, embedder: Box<dyn Embedder>) -> Self {
         FileSqlServer {
             inner: Arc::new(Inner {
                 config,
@@ -95,7 +95,7 @@ impl FileSqlServer {
     }
 
     #[tool(
-        description = "Semantic + keyword code search over the indexed repo. Returns ranked files with a summary and the best-matching line range - read those lines instead of the whole file. Prefer this over grep for finding where something lives."
+        description = "Lexical + structural code search over the indexed repo (AI-free by default; semantic only if configured with a local model). Returns ranked files with a summary and the best-matching line range - read those lines instead of the whole file. Prefer this over grep for finding where something lives."
     )]
     async fn search_code(
         &self,
@@ -165,7 +165,7 @@ impl FileSqlServer {
         let indexer = Indexer::new(
             &self.inner.config,
             self.inner.storage.as_ref(),
-            &self.inner.embedder,
+            self.inner.embedder.as_ref(),
         );
         let stats = indexer
             .run(args.full.unwrap_or(false))
@@ -186,19 +186,19 @@ impl ServerHandler for FileSqlServer {
         info.capabilities = ServerCapabilities::builder().enable_tools().build();
         info.server_info = server_info;
         info.instructions = Some(
-            "Fast semantic + structural code search over this repo. Use search_code to \
-             locate where a behavior or concept lives (returns ranked files + line ranges \
-             to read), find_symbol to jump to a definition, recently_changed to see recent \
-             edits, and reindex to refresh after changes. Prefer these over grepping and \
-             reading whole files."
+            "Fast lexical + structural code search over this repo (AI-free by default; \
+             semantic only if configured with a local model). Use search_code to locate \
+             where a behavior or concept lives (returns ranked files + line ranges to read), \
+             find_symbol to jump to a definition, recently_changed to see recent edits, and \
+             reindex to refresh after changes. Prefer these over grepping and reading whole files."
                 .into(),
         );
         info
     }
 }
 
-/// Serve the MCP server over stdio until the client disconnects. The embedding
-/// model and storage connection stay resident for the whole session.
+/// Serve the MCP server over stdio until the client disconnects. Storage and
+/// the configured ranker/embedder stay resident for the whole session.
 pub async fn run(config: Config) -> anyhow::Result<()> {
     let storage = storage::open(&config).await?;
     let embedder = crate::build_embedder(&config)?;

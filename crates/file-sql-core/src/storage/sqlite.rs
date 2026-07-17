@@ -76,7 +76,7 @@ impl SqliteStore {
         Ok(SqliteStore {
             conn,
             dims: config.embedding.dims,
-            model: config.embedding.model.clone(),
+            model: config.embedding.index_model_key(),
         })
     }
 }
@@ -168,7 +168,7 @@ impl Storage for SqliteStore {
 
         match existing {
             Some((d, m)) if d != dims_str || m != model => Err(Error::Storage(format!(
-                "index was built with model={m} dims={d} but config has model={model} dims={dims_str}; run `file-sql index --full` to rebuild"
+                "index was built with vectorization={m} dims={d} but config has vectorization={model} dims={dims_str}; delete the old SQLite index file before rebuilding"
             ))),
             Some(_) => Ok(()),
             None => {

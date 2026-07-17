@@ -1,7 +1,9 @@
 # file-sql
 
 A local code-index MCP server that lets AI agents find the right files fast -
-without blindly grepping and re-reading a whole repo.
+without blindly grepping and re-reading a whole repo. Default indexing is
+AI-free: deterministic lexical token hashing + trigram text search + symbols +
+git recency. Local embedding models (for semantic search) are opt-in.
 
 ## Install
 
@@ -12,10 +14,8 @@ curl -fsSL https://zottiben.github.io/file-sql/install.sh | sh
 Run it from the repo you want to index. It:
 
 1. installs the `file-sql` binary with `cargo install` (needs a Rust toolchain - https://rustup.rs),
-2. pre-downloads the local embedding model with `curl` (works behind corporate
-   TLS-intercepting proxies, where the built-in downloader's bundled roots don't
-   trust the proxy CA),
-3. writes `.file-sql/config.toml` for the repo and builds the initial index.
+2. writes `.file-sql/config.toml` in AI-free lexical mode,
+3. builds the initial index.
 
 Prerequisites: `curl`, `cargo`, and (optionally) `git` for recency ranking. The
 default SQLite backend needs nothing else; the Postgres backend also needs
@@ -32,7 +32,7 @@ export CARGO_NET_GIT_FETCH_WITH_CLI=true
 
 ```sh
 file-sql index          # index the configured roots (incremental; --full rebuilds)
-file-sql search "how are embeddings generated locally"   # ranked JSON hits
+file-sql search "where is authentication handled"        # ranked JSON hits
 file-sql serve          # run the MCP server over stdio
 file-sql status         # print the resolved config
 ```
@@ -101,6 +101,23 @@ sqlite_path = ".file-sql/index.db"
 # repo = "my-repo"                  # scope key when several repos share one Postgres
 
 [embedding]
+mode = "lexical"                    # default: no AI/ML model, no model download
+dims = 384                          # token-hash vector size
+```
+
+### Optional local embedding model
+
+If you explicitly want semantic search, BGE can run fully locally (no code is
+sent to OpenAI/Anthropic/Hugging Face), but it is still an ML model and is not
+used by default. Install with the optional feature and set `mode = "model"`:
+
+```sh
+cargo install --git https://github.com/zottiben/file-sql file-sql --locked --features model-embeddings
+```
+
+```toml
+[embedding]
+mode = "model"
 model = "bge-small-en-v1.5"         # bge-small | all-minilm-l6 | bge-base | bge-large
 dims = 384                          # must match the model
 # model_path = "/path/to/model-dir" # load a pre-downloaded model (offline / behind a proxy)

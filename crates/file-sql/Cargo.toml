@@ -9,6 +9,10 @@ repository.workspace = true
 name = "file-sql"
 path = "src/main.rs"
 
+[features]
+default = []
+model-embeddings = ["file-sql-core/model-embeddings"]
+
 [dependencies]
 file-sql-core = { path = "../file-sql-core" }
 anyhow.workspace = true

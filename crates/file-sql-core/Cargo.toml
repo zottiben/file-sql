@@ -5,6 +5,10 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[features]
+default = []
+model-embeddings = ["dep:fastembed"]
+
 [dependencies]
 anyhow.workspace = true
 thiserror.workspace = true
@@ -20,7 +24,7 @@ sqlite-vec = "=0.1.9"
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "postgres"] }
 pgvector = { version = "0.4", features = ["sqlx"] }
 ignore = "0.4"
-fastembed = "5"
+fastembed = { version = "5", optional = true }
 sha2 = "0.10"
 hex = "0.4"
 tree-sitter = "0.25"

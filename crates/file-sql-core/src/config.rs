@@ -31,12 +31,29 @@ fn default_sqlite_path() -> PathBuf {
     PathBuf::from(".file-sql/index.db")
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum EmbeddingMode {
+    /// Deterministic token-hash vectors. No AI/ML model, no model download, no
+    /// network calls; this is the default for company-code-safe indexing.
+    #[default]
+    Lexical,
+    /// Local ONNX embedding model (for semantic search). Still local-only, but
+    /// it is an ML model and requires building with the `model-embeddings`
+    /// feature.
+    Model,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EmbeddingConfig {
-    /// Model identifier resolved by the embedding backend (default: bge-small).
+    /// Indexing/ranking mode. Default is `lexical` (no AI model).
+    #[serde(default)]
+    pub mode: EmbeddingMode,
+    /// Model identifier used only when `mode = "model"`.
     #[serde(default = "default_model")]
     pub model: String,
-    /// Vector dimensionality; must match the model above.
+    /// Vector dimensionality. For lexical mode this is the token-hash vector
+    /// size; for model mode it must match the model.
     #[serde(default = "default_dims")]
     pub dims: usize,
     /// Optional local model directory (`model.onnx` plus tokenizer json files).
@@ -54,9 +71,21 @@ fn default_dims() -> usize {
     384
 }
 
+impl EmbeddingConfig {
+    /// Stable key stored in the index metadata so switching between lexical and
+    /// model modes refuses to mix incompatible vectors.
+    pub fn index_model_key(&self) -> String {
+        match self.mode {
+            EmbeddingMode::Lexical => "lexical-hash-v1".to_string(),
+            EmbeddingMode::Model => format!("model:{}", self.model),
+        }
+    }
+}
+
 impl Default for EmbeddingConfig {
     fn default() -> Self {
         EmbeddingConfig {
+            mode: EmbeddingMode::Lexical,
             model: default_model(),
             dims: default_dims(),
             model_path: None,

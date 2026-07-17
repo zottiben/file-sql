@@ -364,7 +364,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::*;
-    use crate::config::{Backend, EmbeddingConfig, StorageConfig};
+    use crate::config::{Backend, EmbeddingConfig, EmbeddingMode, StorageConfig};
     use crate::embedding::HashEmbedder;
     use crate::model::SearchQuery;
     use crate::storage;
@@ -380,6 +380,7 @@ mod tests {
                 postgres_url: None,
             },
             embedding: EmbeddingConfig {
+                mode: EmbeddingMode::Lexical,
                 model: "hash-test".into(),
                 dims: DIMS,
                 model_path: None,
@@ -474,7 +475,7 @@ mod tests {
         let store = storage::open(&config_for(&dir, PathBuf::from(":memory:")))
             .await
             .unwrap();
-        let embedder = HashEmbedder::new(DIMS);
+        let embedder = HashEmbedder::new(DIMS).unwrap();
         let config = config_for(&dir, PathBuf::from(":memory:"));
         let indexer = Indexer::new(&config, store.as_ref(), &embedder);
 
