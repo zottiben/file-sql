@@ -3,10 +3,10 @@
 # file-sql tools over grep.
 #
 #   Into the current repo (default):
-#     curl -fsSL https://raw.githubusercontent.com/zottiben/file-sql/main/install/install-skill.sh | sh
+#     curl -fsSL https://zottiben.github.io/file-sql/install-skill.sh | sh
 #
 #   User-wide (~/.claude/skills):
-#     curl -fsSL https://raw.githubusercontent.com/zottiben/file-sql/main/install/install-skill.sh | sh -s -- --user
+#     curl -fsSL https://zottiben.github.io/file-sql/install-skill.sh | sh -s -- --user
 set -eu
 
 SKILL_NAME="file-sql-search"

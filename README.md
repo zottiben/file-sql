@@ -24,7 +24,7 @@ already knows the literal it wants.
 ## Install
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/zottiben/file-sql/main/install/install.sh | sh
+curl -fsSL https://zottiben.github.io/file-sql/install.sh | sh
 ```
 
 Run it from the repo you want to index. It:
@@ -79,7 +79,7 @@ Install the bundled skill so your agent knows to prefer these tools over grep
 (the main installer does this automatically; run it standalone with):
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/zottiben/file-sql/main/install/install-skill.sh | sh
+curl -fsSL https://zottiben.github.io/file-sql/install-skill.sh | sh
 ```
 
 It writes the skill into `.claude/skills/file-sql-search/` and

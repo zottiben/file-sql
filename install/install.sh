@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 # file-sql installer.
 #
-#   curl -fsSL https://raw.githubusercontent.com/zottiben/file-sql/main/install/install.sh | sh
+#   curl -fsSL https://zottiben.github.io/file-sql/install.sh | sh
 #
 # Installs the `file-sql` binary (via cargo), pre-downloads the local embedding
 # model with curl (works behind TLS-intercepting proxies where the built-in
