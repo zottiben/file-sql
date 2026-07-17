@@ -69,9 +69,11 @@ backend.
 
 ## Status
 
-Early scaffold. Foundation (workspace, config, domain model, storage trait,
-Postgres compose) is in place and compiles. Indexer, embeddings, backend
-implementations, MCP server, installer, and skill are in progress.
+Early but functional core. In place and tested: config, domain model, the
+`Storage` trait, and both backends - SQLite (`sqlite-vec` + FTS5 trigram) and
+Postgres (`pgvector` HNSW + `pg_trgm`) - with hybrid RRF search, symbol lookup,
+incremental content-hash skipping, recency ranking, and a model/dims guard.
+Indexer, embeddings, the `rmcp` MCP server, installer, and skill are next.
 
 ## Development
 

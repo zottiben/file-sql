@@ -72,6 +72,29 @@ pub struct Config {
     /// Skip files larger than this many bytes (default 1 MiB).
     #[serde(default = "default_max_file_bytes")]
     pub max_file_bytes: u64,
+    /// Scope key used by the Postgres backend so one instance can hold several
+    /// repos. Ignored by SQLite (its file is already per-repo). Defaults to the
+    /// canonical path of the first root.
+    #[serde(default)]
+    pub repo: Option<String>,
+}
+
+impl Config {
+    /// Stable identifier for this repo within a shared Postgres index.
+    pub fn repo_key(&self) -> String {
+        if let Some(repo) = &self.repo {
+            return repo.clone();
+        }
+        let root = self
+            .roots
+            .first()
+            .cloned()
+            .unwrap_or_else(|| PathBuf::from("."));
+        std::fs::canonicalize(&root)
+            .unwrap_or(root)
+            .to_string_lossy()
+            .into_owned()
+    }
 }
 
 fn default_roots() -> Vec<PathBuf> {

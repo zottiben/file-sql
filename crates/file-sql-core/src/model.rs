@@ -29,6 +29,21 @@ impl Category {
             Category::Other => "other",
         }
     }
+
+    /// Parse a category from its stored string, defaulting to `Other`.
+    pub fn from_db(s: &str) -> Category {
+        match s {
+            "backend" => Category::Backend,
+            "frontend" => Category::Frontend,
+            "devops" => Category::Devops,
+            "test" => Category::Test,
+            "config" => Category::Config,
+            "docs" => Category::Docs,
+            "data" => Category::Data,
+            "build" => Category::Build,
+            _ => Category::Other,
+        }
+    }
 }
 
 /// A single tracked file and its derived metadata.
@@ -75,6 +90,41 @@ pub enum SymbolKind {
     Constant,
     Module,
     Other,
+}
+
+impl SymbolKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            SymbolKind::Function => "function",
+            SymbolKind::Method => "method",
+            SymbolKind::Class => "class",
+            SymbolKind::Struct => "struct",
+            SymbolKind::Enum => "enum",
+            SymbolKind::Interface => "interface",
+            SymbolKind::Trait => "trait",
+            SymbolKind::Type => "type",
+            SymbolKind::Constant => "constant",
+            SymbolKind::Module => "module",
+            SymbolKind::Other => "other",
+        }
+    }
+
+    /// Parse a symbol kind from its stored string, defaulting to `Other`.
+    pub fn from_db(s: &str) -> SymbolKind {
+        match s {
+            "function" => SymbolKind::Function,
+            "method" => SymbolKind::Method,
+            "class" => SymbolKind::Class,
+            "struct" => SymbolKind::Struct,
+            "enum" => SymbolKind::Enum,
+            "interface" => SymbolKind::Interface,
+            "trait" => SymbolKind::Trait,
+            "type" => SymbolKind::Type,
+            "constant" => SymbolKind::Constant,
+            "module" => SymbolKind::Module,
+            _ => SymbolKind::Other,
+        }
+    }
 }
 
 /// An embeddable slice of a file (usually one symbol body).

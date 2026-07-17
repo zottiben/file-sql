@@ -14,3 +14,8 @@ tokio.workspace = true
 async-trait.workspace = true
 tracing.workspace = true
 toml = "0.8"
+tokio-rusqlite = "0.7"
+rusqlite = { version = "0.37", features = ["bundled"] }
+sqlite-vec = "=0.1.9"
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "postgres"] }
+pgvector = { version = "0.4", features = ["sqlx"] }
