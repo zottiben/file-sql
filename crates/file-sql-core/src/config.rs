@@ -5,19 +5,15 @@ use serde::{Deserialize, Serialize};
 use crate::{Error, Result};
 
 /// Which storage engine backs the index.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Backend {
     /// Zero-setup, single-file, per-repo. Best for individual work.
+    #[default]
     Sqlite,
-    /// Shared/team-scale index. Requires a running Postgres with pgvector.
+    /// Larger or multi-repo indexes on your own Postgres (pgvector). Not yet a
+    /// shared multi-user service.
     Postgres,
-}
-
-impl Default for Backend {
-    fn default() -> Self {
-        Backend::Sqlite
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

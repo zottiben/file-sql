@@ -27,20 +27,18 @@ already knows the literal it wants.
 crates/
   file-sql-core/   Rust: config, storage trait, indexer, search, embeddings
   file-sql/        Rust bin: `index | search | serve | status`
-mcp/               Bun/TS MCP server (thin stdio adapter over the daemon)
 docker/            docker-compose for the Postgres + pgvector backend
 skill/             bundled agent skill (when/how to use the tools)
 install/           curl installer
 ```
 
-The **Rust core** owns the heavy path (walking, tree-sitter chunking, local
-embeddings, storage, hybrid search) and runs as a one-shot CLI or as a resident
-worker (`serve`). The **Bun/TS MCP server** spawns `serve` as a child process
-and speaks a private line-delimited JSON-RPC over its stdin/stdout, so the
-embedding model stays resident for the session with no socket files, no orphaned
-daemons, and no platform-specific IPC. Because the adapter itself speaks MCP over
-stdio, it works with any MCP-capable harness (Claude Code, Codex, OpenCode,
-Pi, ...).
+`file-sql` is a single Rust binary. The `serve` subcommand runs the MCP server
+directly via `rmcp` (the Rust MCP SDK) over stdio, so a harness launches
+`file-sql serve` as its MCP server - no second runtime, no IPC hop, no socket
+files. The embedding model loads once and stays resident for the session, and
+because it speaks MCP over stdio it plugs into any MCP-capable harness (Claude
+Code, Codex, OpenCode, Pi, ...). The same binary also exposes one-shot
+`index` / `search` / `status` for scripting and debugging.
 
 ### Scaling notes
 
@@ -73,7 +71,7 @@ backend.
 
 Early scaffold. Foundation (workspace, config, domain model, storage trait,
 Postgres compose) is in place and compiles. Indexer, embeddings, backend
-implementations, daemon, MCP server, installer, and skill are in progress.
+implementations, MCP server, installer, and skill are in progress.
 
 ## Development
 

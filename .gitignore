@@ -2,11 +2,6 @@
 /target
 **/*.rs.bk
 
-# Bun / Node
-node_modules
-mcp/dist
-bun.lockb.bak
-
 # Local index / data
 *.db
 *.db-shm

@@ -29,10 +29,9 @@ enum Command {
         #[arg(long, default_value_t = 10)]
         limit: usize,
     },
-    /// Run the resident worker: read JSON-RPC requests on stdin, write
-    /// responses on stdout. The MCP adapter spawns this as a child process so
-    /// the embedding model stays resident for the session - cross-platform,
-    /// with no socket files or orphaned daemons.
+    /// Run the MCP server over stdio (via rmcp). A harness launches this
+    /// directly; the embedding model loads once and stays resident for the
+    /// session.
     Serve,
     /// Print index stats and configuration.
     Status,
@@ -42,8 +41,7 @@ enum Command {
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info".into()),
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
         )
         .with_writer(std::io::stderr)
         .init();
